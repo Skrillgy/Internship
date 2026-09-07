@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,6 +21,11 @@ class Game(Base):
         String(20),
         nullable=False,
         default='active'
+    )
+
+    ships: Mapped[list[dict[str, list[str]]]] = mapped_column(
+        JSONB,
+        nullable=False
     )
 
     created_at: Mapped[datetime] = mapped_column(
