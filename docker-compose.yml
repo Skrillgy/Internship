@@ -3,18 +3,18 @@ services:
     image: postgres:16
 
     environment:
-      POSTGRES_DB: navalbattle
-      POSTGRES_USER: navalbattle
-      POSTGRES_PASSWORD: navalbattle
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
 
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U navalbattle -d navalbattle"
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
         ]
       interval: 2s
       timeout: 5s
@@ -27,15 +27,14 @@ services:
     build: .
 
     environment:
-      DATABASE_URL: postgresql+psycopg://navalbattle:navalbattle@db:5432/navalbattle
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
 
     depends_on:
       db:
         condition: service_healthy
 
     ports:
-      - "8000:8000"
-
+      - "${API_PORT}:8000"
 
 volumes:
   postgres_data:

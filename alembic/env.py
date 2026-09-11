@@ -25,10 +25,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 def get_database_url() -> str:
-    return os.getenv(
-        'DATABASE_URL',
-        'postgresql+psycopg://navalbattle:navalbattle@localhost:5432/navalbattle'
-    )
+    return os.environ['DATABASE_URL']
 
 
 def run_migrations_offline() -> None:
