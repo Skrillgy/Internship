@@ -102,16 +102,16 @@ def ships_do_not_touch(
                 for second_row, second_column in second_ship:
                     row_distance = abs(
                         first_row - second_row
-                )
-                column_distance = abs(
-                    first_column - second_column
-                )
+                    )
+                    column_distance = abs(
+                        first_column - second_column
+                    )
 
-                if (
-                    row_distance <= 1
-                    and column_distance <= 1
-                ):
-                    return False
+                    if (
+                        row_distance <= 1
+                        and column_distance <= 1
+                    ):
+                        return False
     return True
 
 def validate_fleet(ships: object) -> bool:

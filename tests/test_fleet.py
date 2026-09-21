@@ -7,6 +7,7 @@ from app.fleet import (
     can_place_ship,
     generate_fleet,
     parse_coordinate,
+    ships_do_not_touch,
     validate_fleet
 )
 
@@ -214,3 +215,11 @@ def test_generate_fleet_is_reproducible_with_same_seed():
     second_fleet = generate_fleet(random.Random(42))
 
     assert first_fleet == second_fleet
+
+def test_multi_cell_ships_touching_are_rejected():
+    ships = [
+        {'coordinates': ['A1']},
+        {'coordinates': ['B1', 'C1']}
+    ]
+
+    assert not ships_do_not_touch(ships)

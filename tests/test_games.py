@@ -36,6 +36,11 @@ def test_start_game():
         assert game is not None
         assert game.status == 'active'
         assert game.ships == ships
+        assert game.own_shots == {}
+        assert game.opponent_shots == {}
+        assert game.target_hits == []
+        assert game.pending_shot is None
+        assert game.turn == 'unknown'
 
         db.delete(game)
         db.commit()
@@ -83,5 +88,6 @@ def test_start_game_internal_server_error(monkeypatch):
     error_client = TestClient(app, raise_server_exceptions=False)
 
     response = error_client.post('/game')
+
     assert response.status_code == 500
     assert response.json() == {'detail': 'Internal Server Error'}

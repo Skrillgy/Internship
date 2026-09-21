@@ -28,6 +28,36 @@ class Game(Base):
         nullable=False
     )
 
+    own_shots: Mapped[dict[str, str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict
+    )
+
+    opponent_shots: Mapped[dict[str, str]] = mapped_column(
+       JSONB,
+       nullable=False,
+       default=dict
+    )
+
+    target_hits: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list
+    )
+
+    pending_shot: Mapped[str | None] = mapped_column(
+        String(3),
+        nullable=True,
+        default=None
+    )
+
+    turn: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default='unknown'
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
