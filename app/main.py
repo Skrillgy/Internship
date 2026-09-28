@@ -3,12 +3,14 @@ from uuid import UUID
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.fleet import generate_fleet
 from app.models import Game
 from app.schemas import (
+    CloseGameResponse,
     OpponentShotRequest,
     OpponentShotResponse,
     ShotResponse,
@@ -200,3 +202,31 @@ def opponent_shot(
     db.commit()
 
     return OpponentShotResponse(result=result)
+
+@app.post('/game/{session_id}/close', response_model=CloseGameResponse, status_code=status.HTTP_200_OK)
+def close_game(
+    session_id: UUID,
+    db: Session = Depends(get_db)
+) -> CloseGameResponse:
+    result = db.execute(
+        update(Game)
+        .where(Game.session_id == session_id, Game.status == 'active')
+        .values(status='closed')
+    )
+
+    if result.rowcount == 1:
+        db.commit()
+        return CloseGameResponse(status='closed')
+
+    game = db.get(Game, session_id)
+
+    if game is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Session not found'
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail='Session is already closed'
+    )
