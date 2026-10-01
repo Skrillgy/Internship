@@ -24,3 +24,6 @@ class ShotResultRequest(BaseModel):
 
 class ShotResultResponse(BaseModel):
     status: Literal['accepted']
+
+class CloseGameResponse(BaseModel):
+    status: Literal['closed']
