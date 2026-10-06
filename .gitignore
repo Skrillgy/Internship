@@ -4,3 +4,8 @@ __pycache__/
 .pytest_cache/
 .env
 .vscode/
+arena/players.local.json
+reports/
+.env.player2
+.venv-arena/
+arena/players.two.local.json

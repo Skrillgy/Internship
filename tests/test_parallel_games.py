@@ -126,47 +126,46 @@ def test_parallel_games_keep_own_shots_isolated(create_game):
 
 def test_parallel_opponent_shots_are_isolated(create_game):
     games = [create_game() for _ in range(PARALLEL_GAMES)]
-
     requests = []
 
     for session_id, ships in games:
         single_deck_coordinate = next(ship['coordinates'][0] for ship in ships if len(ship['coordinates']) == 1)
 
-        requests.append ((session_id, single_deck_coordinate))
-        start_event = Event()
+        requests.append((session_id, single_deck_coordinate))
 
-        def opponent_shot(session_id, coordinate):
-            start_event.wait()
+    barrier = Barrier(PARALLEL_GAMES)
 
-            started_at = perf_counter()
-            response = httpx.post(f'{API_URL}/game/{session_id}/opponent-shot', json={'coordinate': coordinate})
-            elapsed = perf_counter() - started_at
+    def opponent_shot(session_id, coordinate):
+        barrier.wait(timeout=10)
 
-            return session_id, coordinate, response, elapsed
+        started_at = perf_counter()
+        response = httpx.post(f'{API_URL}/game/{session_id}/opponent-shot', json={'coordinate': coordinate}, timeout=5.0)
+        elapsed = perf_counter() - started_at
 
-        with ThreadPoolExecutor(max_workers=PARALLEL_GAMES) as executor:
-            futures = [executor.submit(opponent_shot, session_id, coordinate) for session_id, coordinate in requests]
-            start_event.set()
-            responses = [future.result() for future in futures]
+        return session_id, coordinate, response, elapsed
 
-        with SessionLocal() as db:
-            for (session_id, coordinate, response, elapsed) in responses:
-                assert response.status_code == 200
-                assert response.json() == {'result': 'killed'}
-                assert elapsed < MAX_RESPONSE_TIME, (
-                    f'/opponent-shot for session '
-                    f'{session_id} took'
-                    f'{elapsed:.3f} seconds'
-                )
+    with ThreadPoolExecutor(max_workers=PARALLEL_GAMES) as executor:
+        futures = [executor.submit(opponent_shot, session_id, coordinate) for session_id, coordinate in requests]
 
-                game = db.get(Game, session_id)
+        responses = [future.result(timeout=10) for future in futures]
 
-                assert game is not None
-                assert game.opponent_shots == {coordinate: 'killed'}
-                assert game.own_shots == {}
-                assert game.pending_shot is None
-                assert game.target_hits == []
-                assert game.turn == 'opponent'
+    with SessionLocal() as db:
+        for session_id, coordinate, response, elapsed in responses:
+            assert response.status_code == 200
+            assert response.json() == {'result': 'killed'}
+            assert elapsed < MAX_RESPONSE_TIME, (
+                f'/opponent-shot for session {session_id} '
+                f'took {elapsed:.3f} seconds'
+            )
+
+            game = db.get(Game, session_id)
+
+            assert game is not None
+            assert game.opponent_shots == {coordinate: 'killed'}
+            assert game.own_shots == {}
+            assert game.pending_shot is None
+            assert game.target_hits == []
+            assert game.turn == 'opponent'
 
 def test_parallel_game_creation():
     start_event = Event()

@@ -133,6 +133,14 @@ def accept_shot_result(
     coordinate = game.pending_shot
     result = shot_result.result
 
+    if coordinate in game.own_shots:
+        game.pending_shot = None
+        game.turn = 'opponent'
+
+        db.commit()
+
+        return ShotResultResponse(status='accepted')
+
     updated_shots = dict(game.own_shots)
     updated_shots[coordinate] = result
     game.own_shots = updated_shots
@@ -178,6 +186,8 @@ def opponent_shot(
             detail='Session is not active'
         )
 
+    is_repeated_shot = shot.coordinate in game.opponent_shots
+
     try:
         result = resolve_opponent_shot(
             game.ships,
@@ -194,7 +204,7 @@ def opponent_shot(
     update_shots[shot.coordinate] = result
     game.opponent_shots = update_shots
 
-    if result == 'miss':
+    if is_repeated_shot or result == 'miss':
         game.turn = 'ours'
     else:
         game.turn = 'opponent'
