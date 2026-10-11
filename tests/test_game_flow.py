@@ -178,3 +178,76 @@ def test_parallel_games_keep_independent_state(create_game):
         assert second_game.own_shots == {}
         assert second_game.target_hits == []
         assert (second_game.pending_shot == second_coordinate)
+
+@pytest.mark.parametrize('expected', ['miss', 'hit', 'killed'])
+def test_repeated_opponent_shot_passes_turn_to_service(create_game, expected):
+    session_id, ships = create_game()
+
+    if expected == 'miss':
+        occupied = {coordinate for ship in ships for coordinate in ship['coordinates']}
+
+        coordinate = next(to_coordinate(row, column) for row in range(10) for column in range(10) if to_coordinate(row,column) not in occupied)
+    else:
+        ship_length = 1 if expected == 'killed' else 4
+
+        coordinate = next(ship['coordinates'][0] for ship in ships if len(ship['coordinates']) == ship_length)
+
+    first_response = client.post(
+        f'/game/{session_id}/opponent-shot',
+        json={'coordinate': coordinate}
+    )
+
+    assert first_response.status_code == 200
+    assert first_response.json() == {'result': expected}
+
+    repeated_response = client.post(
+        f'/game/{session_id}/opponent-shot',
+        json={'coordinate':coordinate}
+    )
+
+    assert repeated_response.status_code == 200
+    assert repeated_response.json() == {'result': expected}
+
+    with SessionLocal() as db:
+        game = db.get(Game, session_id)
+
+        assert game.opponent_shots == {coordinate: expected}
+        assert game.turn == 'ours'
+
+    shot_response = client.post(f'/game/{session_id}/shot')
+
+    assert shot_response.status_code == 200
+
+@pytest.mark.parametrize('previous_result', ['miss', 'hit', 'killed'])
+def test_repeated_own_shot_result_passes_turn_to_opponent(create_game, previous_result):
+    session_id, _ = create_game()
+
+    with SessionLocal() as db:
+        game = db.get(Game, session_id)
+
+        game.own_shots = {'A1': previous_result}
+        game.target_hits = ['C3']
+        game.pending_shot = 'A1'
+        game.turn = 'ours'
+
+        db.commit()
+
+    response = client.post(
+        f'/game/{session_id}/shot/result',
+        json={'result': previous_result}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {'status': 'accepted'}
+
+    with SessionLocal() as db:
+        game = db.get(Game, session_id)
+
+        assert game.own_shots == {'A1': previous_result}
+        assert game.target_hits == ['C3']
+        assert game.pending_shot is None
+        assert game.turn == 'opponent'
+
+    blocked_shot = client.post(f'/game/{session_id}/shot')
+
+    assert blocked_shot.status_code == 409

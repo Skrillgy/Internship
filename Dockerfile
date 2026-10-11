@@ -10,6 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY arena ./arena
 COPY alembic ./alembic
 COPY alembic.ini .
 COPY pytest.ini .
