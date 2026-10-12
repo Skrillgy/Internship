@@ -13,6 +13,8 @@ from app.shots import choose_shot as original_choose_shot
 from arena.client import ServiceClient
 from arena.match import run_match
 
+import pytest
+
 VALID_FLEET = [
     {'coordinates': ['A1', 'B1', 'C1', 'D1']},
     {'coordinates': ['F1', 'G1', 'H1']},
@@ -25,15 +27,24 @@ VALID_FLEET = [
     {'coordinates': ['H8']},
     {'coordinates': ['J10']}
 ]
-
-def test_arena_and_real_service_continue_after_repeats(monkeypatch):
+@pytest.mark.parametrize('repeat_coordinate', [None, 'A1', 'B1', 'C1', 'D1'])
+def test_arena_and_real_service_continue_after_repeats(monkeypatch, repeat_coordinate):
     session_ids = []
     shot_counts = {}
     current_shot_number = 0
 
     def choose_shot_with_repeat(own_shots, target_hits):
-        if current_shot_number == 2:
-            return 'A1'
+        if repeat_coordinate is None:
+            if current_shot_number == 2:
+                return 'A1'
+        else:
+            ship_coordinates = ['A1', 'B1', 'C1', 'D1']
+
+            if 1 <= current_shot_number <= 4:
+                return ship_coordinates[current_shot_number - 1]
+
+            if current_shot_number == 5:
+                return repeat_coordinate
 
         return original_choose_shot(own_shots, target_hits)
 
@@ -99,12 +110,28 @@ def test_arena_and_real_service_continue_after_repeats(monkeypatch):
         assert len(repeated_shots) == 2
         assert {shot['player'] for shot in repeated_shots} == {0, 1}
 
-        for shot in repeated_shots:
-            assert shot['coordinate'] == 'A1'
-            assert shot['expected'] == 'hit'
-            assert shot['reported'] == 'hit'
+        expected_coordinate = ('A1' if repeat_coordinate is None else repeat_coordinate)
+        expected_result = ('killed' if repeat_coordinate == 'D1' else 'hit')
 
-        assert [shot['player'] for shot in result.shots[:4]] == [0, 0, 1, 1]
+        for shot in repeated_shots:
+            assert shot['coordinate'] == expected_coordinate
+            assert shot['expected'] == expected_result
+            assert shot ['reported'] == expected_result
+
+        for index, shot in enumerate(result.shots):
+            if shot['repeated']:
+                assert index + 1 < len(result.shots)
+                assert (result.shots[index + 1]['player'] == 1 - shot['player'])
+
+            if repeat_coordinate is not None:
+                for player in (0, 1):
+                    player_shots = [shot for shot in result.shots if shot['player'] == player]
+
+                    assert [shot['coordinate'] for shot in player_shots[:4]] == ['A1', 'B1', 'C1', 'D1']
+                    assert [shot['reported'] for shot in player_shots[:4]] == ['hit', 'hit', 'hit', 'killed']
+                    assert all(not shot['repeated'] for shot in player_shots[:4])
+                    assert player_shots[4]['repeated'] is True
+                    assert (player_shots[4]['coordinate'] == repeat_coordinate)
 
         with SessionLocal() as db:
             for player, session_id in enumerate(session_ids):

@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.main import app
 from app.models import Game
+from app.fleet import validate_fleet
 
 client = TestClient(app)
 
@@ -187,3 +188,64 @@ def test_opponent_shots_are_isolated_between_sessions(create_game):
         assert first_game.opponent_shots == {'A1': "hit"}
 
         assert second_game.opponent_shots == {}
+
+@pytest.mark.parametrize(
+    ('repeated_coordinate', 'expected_result'),
+    [('A1', 'hit'),
+     ('A2', 'hit'),
+     ('A3', 'hit'),
+     ('A4', 'killed')]
+)
+def test_reapeated_shot_after_sinking_keeps_original_result(create_game, repeated_coordinate, expected_result):
+    session_id = create_game()
+
+    fleet = [
+        {'coordinates': ['A1', 'A2', 'A3', 'A4']},
+        {'coordinates': ['A6', 'A7', 'A8']},
+        {'coordinates': ['A10', 'B10', 'C10']},
+        {'coordinates': ['D1', 'E1']},
+        {'coordinates': ['D4', 'D5']},
+        {'coordinates': ['E8', 'E9']},
+        {'coordinates': ['H2']},
+        {'coordinates': ['H5']},
+        {'coordinates': ['H8']},
+        {'coordinates': ['J10']}
+    ]
+
+    assert validate_fleet(fleet)
+
+    with SessionLocal() as db:
+        game = db.get(Game, session_id)
+        game.ships = fleet
+        db.commit()
+
+    excepted_history = {
+        'A1': 'hit',
+        'A2': 'hit',
+        'A3': 'hit',
+        'A4': 'killed'
+    }
+
+    for coordinate, shot_result in excepted_history.items():
+        responce = client.post(f'/game/{session_id}/opponent-shot', json={'coordinate': coordinate})
+
+        assert responce.status_code == 200
+        assert responce.json() == {'result': shot_result}
+
+    repeated_response = client.post(f'/game/{session_id}/opponent-shot', json={'coordinate': repeated_coordinate})
+
+    assert repeated_response.status_code == 200
+    assert repeated_response.json() == {'result': expected_result}
+
+    with SessionLocal() as db:
+        game = db.get(Game, session_id)
+
+        assert game.opponent_shots == excepted_history
+        assert game.status == 'active'
+        assert game.turn == 'ours'
+        assert game.own_shots == {}
+        assert game.pending_shot is None
+
+    own_shot = client.post(f'/game/{session_id}/shot')
+
+    assert own_shot.status_code == 200
