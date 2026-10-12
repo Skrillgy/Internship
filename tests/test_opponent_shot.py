@@ -190,13 +190,24 @@ def test_opponent_shots_are_isolated_between_sessions(create_game):
         assert second_game.opponent_shots == {}
 
 @pytest.mark.parametrize(
-    ('repeated_coordinate', 'expected_result'),
-    [('A1', 'hit'),
-     ('A2', 'hit'),
-     ('A3', 'hit'),
-     ('A4', 'killed')]
+    ('ship_coordinates', 'repeated_coordinate', 'expected_result'),
+    [
+        (['H2'], 'H2', 'killed'),
+
+        (['D1', 'E1'], 'D1', 'hit'),
+        (['D1', 'E1'], 'E1', 'killed'),
+
+        (['A6', 'A7', 'A8'], 'A6', 'hit'),
+        (['A6', 'A7', 'A8'], 'A7', 'hit'),
+        (['A6', 'A7', 'A8'], 'A8', 'killed'),
+
+        (['A1', 'A2', 'A3', 'A4'], 'A1', 'hit'),
+        (['A1', 'A2', 'A3', 'A4'], 'A2', 'hit'),
+        (['A1', 'A2', 'A3', 'A4'], 'A3', 'hit'),
+        (['A1', 'A2', 'A3', 'A4'], 'A4', 'killed')
+    ]
 )
-def test_reapeated_shot_after_sinking_keeps_original_result(create_game, repeated_coordinate, expected_result):
+def test_reapeated_shot_after_sinking_keeps_original_result(create_game, repeated_coordinate, expected_result, ship_coordinates):
     session_id = create_game()
 
     fleet = [
@@ -219,12 +230,14 @@ def test_reapeated_shot_after_sinking_keeps_original_result(create_game, repeate
         game.ships = fleet
         db.commit()
 
-    excepted_history = {
-        'A1': 'hit',
-        'A2': 'hit',
-        'A3': 'hit',
-        'A4': 'killed'
+    inicial_results = {
+        1: ['killed'],
+        2: ['hit', 'killed'],
+        3: ['hit', 'hit', 'killed'],
+        4: ['hit', 'hit', 'hit', 'killed']
     }
+
+    excepted_history = dict(zip(ship_coordinates, inicial_results[len(ship_coordinates)], strict=True))
 
     for coordinate, shot_result in excepted_history.items():
         responce = client.post(f'/game/{session_id}/opponent-shot', json={'coordinate': coordinate})
